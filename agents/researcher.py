@@ -1,45 +1,92 @@
 """Researcher エージェント
 
-世界中の占い手法を網羅的に収集・分類し、
-Obsidian Vaultに構造化されたノートとして記録する。
+世界中の占い手法を収集・分類し、Obsidian Vaultにノートを作成する。
+anthropic SDK の tool use パターンで実装。
 """
 
-import asyncio
-
-from claude_agent_sdk import (
-    ClaudeAgentOptions,
-    create_sdk_mcp_server,
-    query,
-)
-
+from agents.base import run_agent_loop
 from agents.config import load_prompt
-from agents.tools.obsidian_tools import ALL_VAULT_TOOLS
+from agents.tools.obsidian import list_notes, read_note, search_notes, write_note
+
+# --- Claude に公開するツール定義 ---
+
+TOOLS = [
+    {
+        "name": "vault_write_note",
+        "description": "Obsidian Vaultにノートを作成または上書きする",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "relative_path": {
+                    "type": "string",
+                    "description": "Vaultルートからの相対パス (例: 10_Research/East-Asia/四柱推命.md)",
+                },
+                "frontmatter": {
+                    "type": "object",
+                    "description": "YAMLフロントマターの辞書",
+                },
+                "body": {
+                    "type": "string",
+                    "description": "Markdownの本文",
+                },
+            },
+            "required": ["relative_path", "frontmatter", "body"],
+        },
+    },
+    {
+        "name": "vault_list_notes",
+        "description": "指定フォルダ内のMarkdownファイル一覧を返す",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {
+                    "type": "string",
+                    "description": "Vaultルートからの相対フォルダパス",
+                },
+            },
+            "required": ["folder"],
+        },
+    },
+    {
+        "name": "vault_search_notes",
+        "description": "ノートの内容を全文検索する（正規表現対応）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "検索クエリ"},
+                "folder": {"type": "string", "description": "検索対象フォルダ（空=全体）"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "vault_read_note",
+        "description": "Obsidian Vaultからノートを読み取る",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "relative_path": {"type": "string", "description": "ノートの相対パス"},
+            },
+            "required": ["relative_path"],
+        },
+    },
+]
+
+# --- ツールハンドラ ---
+
+TOOL_HANDLERS = {
+    "vault_write_note": lambda relative_path, frontmatter, body: write_note(
+        relative_path, frontmatter, body
+    ),
+    "vault_list_notes": lambda folder: list_notes(folder),
+    "vault_search_notes": lambda query, folder="": search_notes(query, folder),
+    "vault_read_note": lambda relative_path: read_note(relative_path),
+}
 
 
-def _build_mcp_server():
-    """Obsidian Vault操作用のMCPサーバーを構築する。"""
-    return create_sdk_mcp_server(
-        name="obsidian-vault",
-        version="1.0.0",
-        tools=ALL_VAULT_TOOLS,
-    )
-
-
-async def run(
-    target: str,
-    existing_data: str = "",
-) -> str:
-    """Researcherエージェントを実行する。
-
-    Args:
-        target: 調査対象（占い名、地域名など）
-        existing_data: 既存のリサーチデータ（あれば渡す）
-
-    Returns:
-        エージェントの最終出力テキスト
-    """
+def run(target: str, existing_data: str = "") -> str:
+    """Researcherエージェントを実行する。"""
     system_prompt = load_prompt("researcher")
-    mcp_server = _build_mcp_server()
 
     user_prompt = f"""以下の占い手法について調査し、Obsidian Vaultにリサーチノートを作成してください。
 
@@ -51,59 +98,27 @@ async def run(
 
 ## 手順
 1. まず vault_list_notes で 10_Research/ 配下に既存ノートがないか確認
-2. Web検索で情報を収集
-3. vault_write_note で 10_Research/{{地域}}/ 配下にノートを作成
-   - テンプレート（90_Templates/T_Research.md）のフォーマットに従う
-   - frontmatterの全フィールドを埋める
+2. vault_search_notes で既存データに該当する情報がないか確認
+3. 収集した情報を元に vault_write_note で 10_Research/{{地域}}/ 配下にノートを作成
+   - frontmatterの全フィールドを埋める（占い名、地域、文化圏、入力情報、出力カテゴリ、実装難易度）
    - 科学検証ステータスは「未検証」にする
+   - 概要、歴史的背景、仕組み・ロジック、実装メモのセクションを充実させる
 
-## 注意
-- 情報源は信頼性の高いものを優先
-- 文化的・宗教的背景を尊重し、偏見なく記述
-- 不確かな情報には「要確認」を付ける
+## 重要
+- 情報は正確に記述し、不確かなものには「要確認」を付ける
+- 文化的・宗教的背景を尊重する
 """
 
-    result_text = ""
-    async for message in query(
-        prompt=user_prompt,
-        options=ClaudeAgentOptions(
-            system_prompt=system_prompt,
-            mcp_servers={"obsidian-vault": mcp_server},
-            allowed_tools=[
-                "WebSearch",
-                "WebFetch",
-                "mcp__obsidian-vault__vault_read_note",
-                "mcp__obsidian-vault__vault_write_note",
-                "mcp__obsidian-vault__vault_list_notes",
-                "mcp__obsidian-vault__vault_search_notes",
-            ],
-        ),
-    ):
-        if hasattr(message, "content"):
-            for block in message.content:
-                if hasattr(block, "text"):
-                    result_text += block.text + "\n"
-
-    return result_text
-
-
-async def run_batch(targets: list[str], existing_data: str = "") -> list[str]:
-    """複数の占い手法を並列で調査する。
-
-    Args:
-        targets: 調査対象のリスト
-        existing_data: 既存のリサーチデータ
-
-    Returns:
-        各調査の結果テキストのリスト
-    """
-    tasks = [run(target, existing_data) for target in targets]
-    return await asyncio.gather(*tasks)
+    return run_agent_loop(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        tools=TOOLS,
+        tool_handlers=TOOL_HANDLERS,
+    )
 
 
 if __name__ == "__main__":
     import sys
 
     target = sys.argv[1] if len(sys.argv) > 1 else "四柱推命"
-    result = asyncio.run(run(target))
-    print(result)
+    print(run(target))

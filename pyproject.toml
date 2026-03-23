@@ -5,7 +5,7 @@ description = "占いの科学的検証・啓発プラットフォーム"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.40.0",
-    "claude-agent-sdk>=0.1.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

@@ -1,44 +1,84 @@
 """Scientist エージェント
 
-各占い手法に対する科学的研究・メタ分析・実験結果を収集し、
-効果の有無を客観的に評価する。
+各占い手法の科学的検証を行い、エビデンスに基づいて効果を評価する。
 """
 
-import asyncio
-
-from claude_agent_sdk import (
-    ClaudeAgentOptions,
-    create_sdk_mcp_server,
-    query,
+from agents.base import run_agent_loop
+from agents.config import load_prompt
+from agents.tools.obsidian import (
+    append_to_note,
+    get_note_status,
+    list_notes,
+    read_note,
+    write_note,
 )
 
-from agents.config import load_prompt
-from agents.tools.obsidian_tools import ALL_VAULT_TOOLS
+TOOLS = [
+    {
+        "name": "vault_read_note",
+        "description": "Obsidian Vaultからノートを読み取る",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "relative_path": {"type": "string", "description": "ノートの相対パス"},
+            },
+            "required": ["relative_path"],
+        },
+    },
+    {
+        "name": "vault_write_note",
+        "description": "Obsidian Vaultにノートを作成または上書きする",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "relative_path": {"type": "string", "description": "相対パス"},
+                "frontmatter": {"type": "object", "description": "フロントマター"},
+                "body": {"type": "string", "description": "本文"},
+            },
+            "required": ["relative_path", "frontmatter", "body"],
+        },
+    },
+    {
+        "name": "vault_append_to_note",
+        "description": "既存ノートの指定セクションにテキストを追記する",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "relative_path": {"type": "string", "description": "ノートの相対パス"},
+                "section": {"type": "string", "description": "追記先セクション見出し (例: ## 科学的検証)"},
+                "text": {"type": "string", "description": "追記するテキスト"},
+            },
+            "required": ["relative_path", "section", "text"],
+        },
+    },
+    {
+        "name": "vault_list_notes",
+        "description": "指定フォルダ内のノート一覧を返す",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "フォルダパス"},
+            },
+            "required": ["folder"],
+        },
+    },
+]
+
+TOOL_HANDLERS = {
+    "vault_read_note": lambda relative_path: read_note(relative_path),
+    "vault_write_note": lambda relative_path, frontmatter, body: write_note(
+        relative_path, frontmatter, body
+    ),
+    "vault_append_to_note": lambda relative_path, section, text: append_to_note(
+        relative_path, section, text
+    ),
+    "vault_list_notes": lambda folder: list_notes(folder),
+}
 
 
-def _build_mcp_server():
-    return create_sdk_mcp_server(
-        name="obsidian-vault",
-        version="1.0.0",
-        tools=ALL_VAULT_TOOLS,
-    )
-
-
-async def run(
-    uranai_name: str,
-    research_note_path: str,
-) -> str:
-    """Scientistエージェントを実行する。
-
-    Args:
-        uranai_name: 占い名
-        research_note_path: リサーチノートの相対パス（例: "10_Research/East-Asia/四柱推命.md"）
-
-    Returns:
-        エージェントの最終出力テキスト
-    """
+def run(uranai_name: str, research_note_path: str) -> str:
+    """Scientistエージェントを実行する。"""
     system_prompt = load_prompt("scientist")
-    mcp_server = _build_mcp_server()
 
     user_prompt = f"""以下の占い手法について科学的検証を行ってください。
 
@@ -50,52 +90,31 @@ async def run(
 
 ## 手順
 1. vault_read_note で対象のリサーチノートを読む
-2. Web検索で科学的研究・論文を探す
-   - Google Scholar、PubMed、学術データベースを優先
-   - 検索キーワード例: "{uranai_name} scientific study", "{uranai_name} evidence", "{uranai_name} debunk"
+2. その占いに関する科学的研究・論文の知識を整理する
+   - 占星術ならShawn Carlsonの二重盲検試験(1985, Nature)等
+   - バーナム効果、コールドリーディング、確証バイアスの観点
 3. vault_write_note で 20_Science/Verdicts/{uranai_name}.md に検証結論ノートを作成
-   - テンプレート（90_Templates/T_Science.md）のフォーマットに従う
-   - エビデンスレベルを明示する
-4. vault_append_to_note で元のリサーチノートの「## 科学的検証」セクションに要約を追記
-5. リサーチノートの frontmatter の「科学検証ステータス」を更新
+   - 検証ステータス、エビデンスレベル、研究サマリー、結論を含める
+4. vault_append_to_note で元のリサーチノートの「## 科学的検証」セクションに検証結果の要約を追記
 
 ## 検証ステータスの判定基準
 - 効果なし: 複数の質の高い研究で否定
-- 一部根拠あり: 限定的な条件下で統計的有意な結果
+- 一部根拠あり: 限定的な条件下で統計的有意
 - 効果あり: 複数の独立した研究で再現性のある効果
 - 検証不能: 科学的に検証する方法がない
-- 検証中: 調査進行中
 
 ## 重要
 - 科学的誠実さを最優先する
-- バーナム効果、コールドリーディング、確証バイアスを考慮する
-- 出典は必ずDOIまたはURLを記載する
-- 検証不能なものは正直に「検証不能」と記す
+- 出典にはDOIまたはURLを記載する
+- 検証不能なものは正直に記す
 """
 
-    result_text = ""
-    async for message in query(
-        prompt=user_prompt,
-        options=ClaudeAgentOptions(
-            system_prompt=system_prompt,
-            mcp_servers={"obsidian-vault": mcp_server},
-            allowed_tools=[
-                "WebSearch",
-                "WebFetch",
-                "mcp__obsidian-vault__vault_read_note",
-                "mcp__obsidian-vault__vault_write_note",
-                "mcp__obsidian-vault__vault_append_to_note",
-                "mcp__obsidian-vault__vault_list_notes",
-                "mcp__obsidian-vault__vault_get_note_status",
-            ],
-        ),
-    ):
-        if hasattr(message, "content"):
-            for block in message.content:
-                if hasattr(block, "text"):
-                    result_text += block.text + "\n"
-
-    return result_text
+    return run_agent_loop(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        tools=TOOLS,
+        tool_handlers=TOOL_HANDLERS,
+    )
 
 
 if __name__ == "__main__":
@@ -103,5 +122,4 @@ if __name__ == "__main__":
 
     uranai = sys.argv[1] if len(sys.argv) > 1 else "四柱推命"
     path = sys.argv[2] if len(sys.argv) > 2 else f"10_Research/East-Asia/{uranai}.md"
-    result = asyncio.run(run(uranai, path))
-    print(result)
+    print(run(uranai, path))
