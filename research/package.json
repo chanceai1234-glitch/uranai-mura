@@ -1,0 +1,8 @@
+{
+  "name": "uranai-research-tools",
+  "private": true,
+  "description": "create_excel.mjs で uranai_master.xlsx を生成",
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}
