@@ -1,0 +1,49 @@
+services:
+  # Phase 1 パイプライン実行
+  pipeline:
+    build: .
+    volumes:
+      - "${OBSIDIAN_VAULT_PATH:-C:/Users/加藤敦也KatoAtsuya/uranai-mura-vault}:/vault"
+      - ./research:/app/research
+    env_file: .env
+    environment:
+      - OBSIDIAN_VAULT_PATH=/vault
+
+  # 個別エージェント: Researcher
+  researcher:
+    build: .
+    volumes:
+      - "${OBSIDIAN_VAULT_PATH:-C:/Users/加藤敦也KatoAtsuya/uranai-mura-vault}:/vault"
+    env_file: .env
+    environment:
+      - OBSIDIAN_VAULT_PATH=/vault
+    entrypoint: ["python", "-m", "agents.run", "researcher"]
+
+  # 個別エージェント: Scientist
+  scientist:
+    build: .
+    volumes:
+      - "${OBSIDIAN_VAULT_PATH:-C:/Users/加藤敦也KatoAtsuya/uranai-mura-vault}:/vault"
+    env_file: .env
+    environment:
+      - OBSIDIAN_VAULT_PATH=/vault
+    entrypoint: ["python", "-m", "agents.run", "scientist"]
+
+  # 個別エージェント: Research Reviewer
+  reviewer:
+    build: .
+    volumes:
+      - "${OBSIDIAN_VAULT_PATH:-C:/Users/加藤敦也KatoAtsuya/uranai-mura-vault}:/vault"
+    env_file: .env
+    environment:
+      - OBSIDIAN_VAULT_PATH=/vault
+    entrypoint: ["python", "-m", "agents.run", "reviewer"]
+
+  # テスト実行
+  test:
+    build: .
+    volumes:
+      - "${OBSIDIAN_VAULT_PATH:-C:/Users/加藤敦也KatoAtsuya/uranai-mura-vault}:/vault"
+    environment:
+      - OBSIDIAN_VAULT_PATH=/vault
+    entrypoint: ["python", "-m", "pytest", "-v"]
