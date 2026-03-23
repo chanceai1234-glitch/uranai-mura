@@ -46,6 +46,28 @@ def main():
     wrt.add_argument("--science", default="", help="科学検証ノートのパス")
     wrt.add_argument("--research", default="", help="リサーチノートのパス")
 
+    # phase3: 開発パイプライン
+    p3 = subparsers.add_parser("phase3", help="Phase 3 開発パイプライン実行")
+    p3.add_argument("uranai", help="占い名")
+    p3.add_argument("--research", default="", help="リサーチノートのパス")
+
+    # 開発系個別エージェント
+    req = subparsers.add_parser("requirements", help="Requirements Analyst 単体実行")
+    req.add_argument("uranai", help="占い名")
+    req.add_argument("--research", default="", help="リサーチノートのパス")
+
+    arc = subparsers.add_parser("architect", help="Architect 単体実行")
+    arc.add_argument("uranai", help="占い名")
+
+    imp = subparsers.add_parser("implementer", help="Implementer 単体実行")
+    imp.add_argument("uranai", help="占い名")
+
+    tst = subparsers.add_parser("tester", help="Tester 単体実行")
+    tst.add_argument("uranai", help="占い名")
+
+    crev = subparsers.add_parser("code-reviewer", help="Code Reviewer 単体実行")
+    crev.add_argument("uranai", help="占い名")
+
     args = parser.parse_args()
 
     if args.command == "phase1":
@@ -95,6 +117,39 @@ def main():
         science = args.science or f"20_Science/Verdicts/{args.uranai}.md"
         research = args.research or ""
         print(run(args.uranai, science, research))
+
+    elif args.command == "phase3":
+        from agents.pipeline_phase3 import run_pipeline
+
+        result = run_pipeline(args.uranai, args.research)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    elif args.command == "requirements":
+        from agents.requirements_analyst import run
+
+        research = args.research or f"10_Research/East-Asia/{args.uranai}.md"
+        print(run(args.uranai, research))
+
+    elif args.command == "architect":
+        from agents.architect import run
+
+        print(run(args.uranai))
+
+    elif args.command == "implementer":
+        from agents.implementer import run
+
+        print(run(args.uranai))
+
+    elif args.command == "tester":
+        from agents.tester import run
+
+        print(run(args.uranai))
+
+    elif args.command == "code-reviewer":
+        from agents.code_reviewer import run
+
+        result = run(args.uranai)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
     else:
         parser.print_help()
