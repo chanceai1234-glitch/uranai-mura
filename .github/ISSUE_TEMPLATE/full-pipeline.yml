@@ -1,0 +1,28 @@
+name: "フルパイプライン"
+description: "リサーチ→科学検証→記事作成→開発まで全自動で実行"
+labels: ["agent", "full"]
+body:
+  - type: input
+    id: uranai_name
+    attributes:
+      label: 占い名
+      placeholder: "例: 西洋占星術"
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: 地域
+      options:
+        - 東アジア
+        - 南アジア
+        - 東南アジア
+        - 中央アジア
+        - 中東
+        - ヨーロッパ
+        - アフリカ
+        - アメリカ
+        - オセアニア
+        - 現代
+    validations:
+      required: true

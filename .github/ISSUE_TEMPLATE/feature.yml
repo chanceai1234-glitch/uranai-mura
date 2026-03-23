@@ -1,0 +1,17 @@
+name: "体験機能開発"
+description: "占い体験機能の要件定義→設計→実装→テストを依頼する"
+labels: ["agent", "feature"]
+body:
+  - type: input
+    id: uranai_name
+    attributes:
+      label: 占い名
+      description: "開発する占い体験機能の名前"
+      placeholder: "例: 四柱推命"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 備考
+      description: "特別な要件があれば"

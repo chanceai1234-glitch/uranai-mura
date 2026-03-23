@@ -1,0 +1,17 @@
+name: "啓発コンテンツ作成"
+description: "科学検証済みの占いについて啓発記事を作成する"
+labels: ["agent", "content"]
+body:
+  - type: input
+    id: uranai_name
+    attributes:
+      label: 占い名
+      description: "記事を作成する占い名（科学検証済みであること）"
+      placeholder: "例: 四柱推命"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 備考
+      description: "記事の方向性や強調したいポイントがあれば"

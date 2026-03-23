@@ -1,0 +1,34 @@
+name: "占いリサーチ"
+description: "占い手法の調査・科学検証を依頼する"
+labels: ["agent", "research"]
+body:
+  - type: input
+    id: uranai_name
+    attributes:
+      label: 占い名
+      description: "調査対象の占い名を入力してください"
+      placeholder: "例: タロット"
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: 地域
+      options:
+        - 東アジア
+        - 南アジア
+        - 東南アジア
+        - 中央アジア
+        - 中東
+        - ヨーロッパ
+        - アフリカ
+        - アメリカ
+        - オセアニア
+        - 現代
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 備考
+      description: "追加情報があれば記入してください"

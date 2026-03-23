@@ -68,6 +68,10 @@ def main():
     crev = subparsers.add_parser("code-reviewer", help="Code Reviewer 単体実行")
     crev.add_argument("uranai", help="占い名")
 
+    # Orchestrator
+    orch = subparsers.add_parser("orchestrator", help="Orchestrator（Issue JSON入力）")
+    orch.add_argument("issue_json", help="Issue情報のJSON文字列")
+
     args = parser.parse_args()
 
     if args.command == "phase1":
@@ -149,6 +153,13 @@ def main():
         from agents.code_reviewer import run
 
         result = run(args.uranai)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    elif args.command == "orchestrator":
+        from agents.orchestrator import dispatch
+
+        issue = json.loads(args.issue_json)
+        result = dispatch(issue)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     else:
